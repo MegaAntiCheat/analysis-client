@@ -1,9 +1,10 @@
 import axios from 'axios';
-import { ChildProcess, execFileSync, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, execFile, execFileSync, spawn, SpawnOptions } from 'child_process';
 import { existsSync, mkdir, mkdirSync, rmdirSync, rmSync } from 'fs';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { Client } from 'minio';
 
 require('dotenv').config();
 
@@ -14,7 +15,9 @@ const QUERY_LIMIT: number = Number(process.env.QUERY_LIMIT) || 1;
 const JOBS_URL: string = process.env.JOBS_URL || "";
 const KEY: string = process.env.KEY || "";
 const ANALYSIS_EXECUTABLE: string = process.env.ANALYSIS_EXECUTABLE || "";
-const DEMODATA_URL: string = process.env.DEMODATA_URL || "";
+const MINIO_HOSTNAME: string = process.env.MINIO_HOSTNAME || "";
+const MINIO_ACCESS_KEY: string = process.env.MINIO_ACCESS_KEY || "";
+const MINIO_SECRET_KEY: string = process.env.MINIO_SECRET_KEY || "";
 
 async function main(): Promise<void> {
 
@@ -92,34 +95,26 @@ async function main(): Promise<void> {
     } while (true);
 }
 
-async function do_job(session_id: string): Promise<string> {
-
-    const inPath = path.join(process.cwd(), 'temp', 'demo', `${session_id}.dem`);
-    const outPath = path.join(process.cwd(), 'temp', 'json', `${session_id}.json`);
+async function download_demo_data(session_id: string): Promise<string> {
+    // Download demo
 
     try {
-        // Download demo
-        const response = await axios.get(`${DEMODATA_URL}?api_key=${KEY}&session_id=${session_id}`, { responseType: 'stream' });
-        const writer = fs.createWriteStream(inPath);
-        response.data.pipe(writer);
-        await new Promise((resolve, reject) => {
-            writer.on('finish', resolve);
-            writer.on('error', reject);
+        const inPath = path.join(process.cwd(), 'temp', 'demo', `${session_id}.dem`);
+        const minioClient = new Client({
+            endPoint: MINIO_HOSTNAME,
+            port: 9000,
+            useSSL: false,
+            accessKey: MINIO_ACCESS_KEY,
+            secretKey: MINIO_SECRET_KEY
         });
+        const data = await minioClient.getObject('demoblobs', `${session_id}.dem`);
 
-        // Run analysis
-        const output = execFileSync(
-            `"${ANALYSIS_EXECUTABLE}"`,
-            ["-q", "-i", inPath],
-            {
-                shell: true,
-                timeout: 60000,
-                cwd: process.cwd()
-            } as SpawnOptions
-        ).toString();
-
-        // Write json
-        fs.writeFileSync(outPath, output);
+        const stream = fs.createWriteStream(inPath);
+        data.pipe(stream);
+        await new Promise((resolve, reject) => {
+            stream.on('finish', resolve);
+            stream.on('error', reject);
+        });
         
     } catch (error) {
         if(error instanceof Error) {
@@ -127,10 +122,59 @@ async function do_job(session_id: string): Promise<string> {
         } else {
             return "Unknown error";
         }
+    }
+    return "";
+}
+
+async function do_job(session_id: string): Promise<string> {
+
+    const inPath = path.join(process.cwd(), 'temp', 'demo', `${session_id}.dem`);
+    const outPath = path.join(process.cwd(), 'temp', 'json', `${session_id}.json`);
+
+    try {
+
+        const result =await download_demo_data(session_id);
+
+        if(result !== "") {
+            throw new Error(result);
+        }
+        console.log("Downloaded demo " + session_id);
+
+        // Run analysis
+        const child_process = execFile(
+            `"${ANALYSIS_EXECUTABLE}"`,
+            ["-q", "-i", inPath],
+            {
+                shell: true,
+                timeout: 60000,
+                cwd: process.cwd()
+            } as SpawnOptions
+        );
+        const output = await new Promise<string>((resolve, reject) => {
+            let stdout = '';
+            child_process.stdout?.setEncoding('utf8');
+            child_process.stdout?.on('data', (data) => stdout += data);
+            child_process.on('error', reject);
+            child_process.on('close', () => resolve(stdout));
+        });
+
+        // Write json
+        fs.writeFileSync(outPath, output);
+        
+    } catch (error) {
+        
+        if (error instanceof Error) {
+            console.log("Job failed: " + session_id + "\n" + error.message);
+            return error.message;   
+        } else {
+            console.log("Job failed for unknown reason: " + session_id);
+            return "Unknown error";
+        }
     } finally {
         if(existsSync(inPath)) rmSync(inPath);
-        if(existsSync(outPath)) rmSync(outPath);
+        // if(existsSync(outPath)) rmSync(outPath);
     }
+    console.log("Job completed successfully: " + session_id);
     return "";
 }
 
