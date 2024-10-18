@@ -1,5 +1,6 @@
 .env
 /build
+/temp
 
 # Logs
 logs
