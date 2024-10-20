@@ -9,7 +9,7 @@ import { Client } from 'minio';
 require('dotenv').config();
 
 const longInterval = 60 * 1000;
-const shortInterval = 1 * 1000;
+const shortInterval = 1 * 100;
 const PROCESS_LIMIT: number = Number(process.env.PROCESS_LIMIT) || 1;
 const QUERY_LIMIT: number = Number(process.env.QUERY_LIMIT) || 1;
 const JOBS_URL: string = process.env.JOBS_URL || "";
@@ -76,17 +76,19 @@ async function main(): Promise<void> {
         let session_ids = Array.from(queue);
         
         // Run the jobs.
-        while (running_jobs.size < PROCESS_LIMIT) {
+        let i = running_jobs.size;
+        while (i < PROCESS_LIMIT ) {
             const session_id = session_ids.shift();
             if (session_id === undefined) {
                 break;
-            } else if (running_jobs.has(session_id)) {
+            } else if (running_jobs.has(session_id) || completed_jobs.has(session_id)) {
                 continue;
             }
             console.log("Starting job: " + session_id);
             const promise = do_job(session_id);
             running_jobs.set(session_id, promise);
             queue.delete(session_id);
+            i++;
         }
 
         // Check the jobs
@@ -186,23 +188,30 @@ async function download_demo_data(session_id: string): Promise<void> {
 }
 
 async function analyse_demo(session_id: string): Promise<void> {
-    const child_process = execFile(
-        `"${ANALYSIS_EXECUTABLE}"`,
-        ["-q", "-i", get_in_path(session_id)],
-        {
-            shell: true,
-            timeout: 60000,
-            cwd: process.cwd()
-        } as SpawnOptions
-    );
-    const output = await new Promise<string>((resolve, reject) => {
-        let stdout = '';
-        child_process.stdout?.setEncoding('utf8');
-        child_process.stdout?.on('data', (data) => stdout += data);
-        child_process.on('error', reject);
-        child_process.on('close', () => resolve(stdout));
-    });
-    fs.writeFileSync(get_out_path(session_id), output);
+    let child_process: ChildProcess | undefined = undefined;
+    try {
+        child_process = execFile(
+            `"${ANALYSIS_EXECUTABLE}"`,
+            ["-q", "-i", get_in_path(session_id)],
+            {
+                shell: true,
+                timeout: 60 * 60 * 1000,
+                cwd: process.cwd()
+            } as SpawnOptions
+        );
+        const output = await new Promise<string>((resolve, reject) => {
+            let stdout = '';
+            child_process?.stdout?.setEncoding('utf8');
+            child_process?.stdout?.on('data', (data) => stdout += data);
+            child_process?.on('error', reject);
+            child_process?.on('close', () => resolve(stdout));
+        });
+        fs.writeFileSync(get_out_path(session_id), output);
+    } catch {
+        child_process?.kill();
+        throw new Error("Failed to analyse demo");
+    }
+    
 }
 
 async function upload_analysis(session_id: string): Promise<void> {
