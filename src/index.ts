@@ -99,7 +99,6 @@ async function main(): Promise<void> {
 
         if (running_jobs.size === 0 && queue.size === 0) {
             console.log("Queue completed");
-            process.exit(0);
             await delay(start, longInterval);
         } 
 
