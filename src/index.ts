@@ -34,6 +34,16 @@ async function main(): Promise<void> {
     let queue: Set<string> = new Set<string>();
     let running_jobs: Map<string, Promise<string>> = new Map<string, Promise<string>>();
     let completed_jobs: Map<string, number> = new Map<string, number>();
+    let last_status_update = 0;
+
+    const print_status = () => {
+        const now = Date.now();
+        if (now - last_status_update > 10000) {
+            console.log(`Running jobs: ${running_jobs.size}`);
+            console.log(`Queued jobs: ${queue.size}`);
+            last_status_update = now;
+        }
+    }
 
     do {
         const start = Date.now();
@@ -44,7 +54,6 @@ async function main(): Promise<void> {
         if (queue.size >= PROCESS_LIMIT) {
             //console.log(`${queue.size} sessions in local queue. We have enough for now.`);
         } else {
-            console.log(`${queue.size} sessions in local queue. Querying for more...`);
             const response = await axios.get(`${JOBS_URL}?api_key=${KEY}&limit=${QUERY_LIMIT}`);
 
             if (response.status !== 200) {
@@ -61,7 +70,7 @@ async function main(): Promise<void> {
                 queue.add(job);
             });
 
-            console.log(`Added ${queue.size - old_queue_size} sessions to queue (${queue.size} total).`);
+            console.log(`Added ${queue.size - old_queue_size} sessions to queue.`);
         }
 
         let session_ids = Array.from(queue);
@@ -110,7 +119,9 @@ async function main(): Promise<void> {
             }
         }
 
-        await delay(Date.now(), shortInterval);
+        print_status();
+
+        await delay(start, shortInterval);
     
     } while (true);
 }
