@@ -69,8 +69,9 @@ async function main(): Promise<void> {
                     completed_jobs.has(job)) return;
                 queue.add(job);
             });
-
-            console.log(`Added ${queue.size - old_queue_size} sessions to queue.`);
+            if(old_queue_size !== queue.size) {
+                console.log(`Added ${queue.size - old_queue_size} sessions to queue.`);
+            }
         }
 
         let session_ids = Array.from(queue);
@@ -206,10 +207,16 @@ async function analyse_demo(session_id: string): Promise<void> {
             child_process?.on('error', reject);
             child_process?.on('close', () => resolve(stdout));
         });
+        if(child_process.exitCode !== 0) {
+            throw new Error("Analysis ended with exit code " + child_process.exitCode);
+        }
         fs.writeFileSync(get_out_path(session_id), output);
-    } catch {
+    } catch (err) {
         child_process?.kill();
-        throw new Error("Failed to analyse demo");
+        if(err instanceof Error) {
+            throw new Error("Failed to analyse demo: " + err.message);
+        }
+        throw new Error("Failed to analyse demo: unknown error");
     }
     
 }
