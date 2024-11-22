@@ -207,7 +207,7 @@ async function analyse_demo(session_id: string): Promise<void> {
             child_process?.on('error', reject);
             child_process?.on('close', () => resolve(stdout));
         });
-        if(child_process.exitCode !== 0) {
+        if(child_process.exitCode !== 0 && child_process.exitCode !== null) {
             throw new Error("Analysis ended with exit code " + child_process.exitCode);
         }
         fs.writeFileSync(get_out_path(session_id), output);
