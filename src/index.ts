@@ -205,10 +205,10 @@ async function analyse_demo(session_id: string): Promise<void> {
             child_process?.stdout?.setEncoding('utf8');
             child_process?.stdout?.on('data', (data) => stdout += data);
             child_process?.on('error', reject);
-            child_process?.on('close', () => resolve(stdout));
+            child_process?.on('exit', () => resolve(stdout));
         });
         if(child_process.exitCode !== 0 && child_process.exitCode !== null) {
-            throw new Error("Analysis ended with exit code " + child_process.exitCode);
+            throw new Error("Analysis ended with code " + (child_process.exitCode ?? child_process.signalCode));
         }
         fs.writeFileSync(get_out_path(session_id), output);
     } catch (err) {
