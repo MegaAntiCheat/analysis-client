@@ -23,7 +23,7 @@ const MINIO_SECRET_KEY: string = process.env.MINIO_SECRET_KEY || "";
 // If linux, use /dev/shm for temp files
 // Prevents 1TB of writes every time I need to run the demos through a new version of the algorithms.
 
-const ROOT_PATH = Os.platform() === 'linux' ? path.join("dev", "shm", "mac_analysis_client") : process.cwd();
+const ROOT_PATH = Os.platform() === 'linux' ? path.join("/dev", "shm", "mac_analysis_client") : process.cwd();
 
 const TEMP_PATH = path.join(ROOT_PATH, 'temp');
 const DEMO_PATH = path.join(TEMP_PATH, 'demo');
