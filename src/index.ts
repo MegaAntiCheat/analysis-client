@@ -31,7 +31,9 @@ const JSON_PATH = path.join(TEMP_PATH, 'json');
 
 async function main(): Promise<void> {
 
+    if(!existsSync(ROOT_PATH)) mkdirSync(ROOT_PATH);
     if (existsSync(TEMP_PATH)) rmdirSync(TEMP_PATH, { recursive: true });
+    
     mkdirSync(TEMP_PATH);
     mkdirSync(DEMO_PATH);
     mkdirSync(JSON_PATH);
