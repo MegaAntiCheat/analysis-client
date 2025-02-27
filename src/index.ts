@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { ChildProcess, execFile, execFileSync, spawn, SpawnOptions } from 'child_process';
+import { ChildProcess, execFile, SpawnOptions } from 'child_process';
 import { existsSync, mkdir, mkdirSync, rmdirSync, rmSync } from 'fs';
-import { promisify } from 'util';
 import fs from 'fs';
+import Os from 'os'
 import path from 'path';
 import { Client } from 'minio';
 
@@ -22,7 +22,11 @@ const MINIO_SECRET_KEY: string = process.env.MINIO_SECRET_KEY || "";
 
 async function main(): Promise<void> {
 
-    const tempPath = path.join(process.cwd(), 'temp');
+    // If linux, use /dev/shm for temp files
+    // Prevents 1TB of writes every time I need to run the demos through a new version of the algorithms.
+    const rootPath = Os.platform() === 'linux' ? path.join("dev", "shm") : process.cwd();
+
+    const tempPath = path.join(rootPath, 'temp');
     const demoPath = path.join(tempPath, 'demo');
     const jsonPath = path.join(tempPath, 'json');
 
