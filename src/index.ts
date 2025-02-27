@@ -20,20 +20,21 @@ const MINIO_HOSTNAME: string = process.env.MINIO_HOSTNAME || "";
 const MINIO_ACCESS_KEY: string = process.env.MINIO_ACCESS_KEY || "";
 const MINIO_SECRET_KEY: string = process.env.MINIO_SECRET_KEY || "";
 
+// If linux, use /dev/shm for temp files
+// Prevents 1TB of writes every time I need to run the demos through a new version of the algorithms.
+
+const ROOT_PATH = Os.platform() === 'linux' ? path.join("dev", "shm", "mac_analysis_client") : process.cwd();
+
+const TEMP_PATH = path.join(ROOT_PATH, 'temp');
+const DEMO_PATH = path.join(TEMP_PATH, 'demo');
+const JSON_PATH = path.join(TEMP_PATH, 'json');
+
 async function main(): Promise<void> {
 
-    // If linux, use /dev/shm for temp files
-    // Prevents 1TB of writes every time I need to run the demos through a new version of the algorithms.
-    const rootPath = Os.platform() === 'linux' ? path.join("dev", "shm") : process.cwd();
-
-    const tempPath = path.join(rootPath, 'temp');
-    const demoPath = path.join(tempPath, 'demo');
-    const jsonPath = path.join(tempPath, 'json');
-
-    if (existsSync(tempPath)) rmdirSync(tempPath, { recursive: true });
-    mkdirSync(tempPath);
-    mkdirSync(demoPath);
-    mkdirSync(jsonPath);
+    if (existsSync(TEMP_PATH)) rmdirSync(TEMP_PATH, { recursive: true });
+    mkdirSync(TEMP_PATH);
+    mkdirSync(DEMO_PATH);
+    mkdirSync(JSON_PATH);
 
     let queue: Set<string> = new Set<string>();
     let running_jobs: Map<string, Promise<string>> = new Map<string, Promise<string>>();
@@ -134,11 +135,11 @@ async function main(): Promise<void> {
 }
 
 function get_in_path(session_id: string): string {
-    return path.join(process.cwd(), 'temp', 'demo', `${session_id}.dem`);
+    return path.join(DEMO_PATH, `${session_id}.dem`);
 }
 
 function get_out_path(session_id: string): string {
-    return path.join(process.cwd(), 'temp', 'json', `${session_id}.json`);
+    return path.join(JSON_PATH, `${session_id}.json`);
 }
 
 async function do_job(session_id: string): Promise<string> {
@@ -174,7 +175,7 @@ async function do_job(session_id: string): Promise<string> {
 }
 
 async function download_demo_data(session_id: string): Promise<void> {
-    const inPath = path.join(process.cwd(), 'temp', 'demo', `${session_id}.dem`);
+    const inPath = get_in_path(session_id);
     const minioClient = new Client({
         endPoint: MINIO_HOSTNAME,
         port: 9000,
